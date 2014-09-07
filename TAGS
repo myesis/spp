@@ -1,0 +1,595 @@
+
+aviary_port.h,68
+#define AVIARY_PORT_H__2,24
+#define AVIARY_DEFAULT_MAX_PORTS 4,49
+
+time.c,22
+aviary_init_time(2,5
+
+aviary_alloc.c,393
+#define AVIARY_CACHE_LINE_SIZE 6,76
+#define AVIARY_CACHE_LINE_MASK 7,110
+#define AVIARY_MEM_ALLOC(10,178
+#define AVIARY_MEM_REALLOC(11,222
+#define AVIARY_MEM_FREE(12,279
+aviary_mmap(15,326
+void *aviary_alloc(aviary_alloc31,594
+void *aviary_realloc(aviary_realloc41,770
+void aviary_free(51,968
+void *aviary_alloc_permanent_cache_aligned(aviary_alloc_permanent_cache_aligned55,1027
+
+atomic.h,239
+#define ATOMIC_H__2,19
+#define ATHR_AINT_T__ 6,61
+#define ATHR_NATMC_FUNC__(8,144
+#define ATHR_AINT_SUFFIX__ 10,201
+    volatile ATHR_AINT_T__ counter;13,250
+} ATHR_ATMC_T__;14,286
+ATHR_NATMC_FUNC__(17,332
+ATHR_NATMC_FUNC__(23,434
+
+aviary_process.h,5227
+#define __PROCESS_H__2,22
+typedef struct process Process;4,45
+#define AVIARY_DEFAULT_MAX_PROCESSES 16,278
+#define PRIORITY_MAX 19,351
+#define PRIORITY_HIGH 20,383
+#define PRIORITY_NORMAL 21,415
+#define PRIORITY_LOW 22,447
+#define AVIARY_NO_PROC_PRIO_LEVELS 23,479
+#define AVIARY_NO_PROC_PRIO_QUEUES 24,521
+#define AVIARY_PORT_PRIO_LEVEL 26,564
+#define AVIARY_NO_PRIO_LEVELS 27,622
+#define AVIARY_RUNQ_FLGS_PROCS_QMASK 29,686
+#define AVIARY_RUNQ_FLGS_QMASK 32,779
+#define RESCHEDULE_LOW 35,861
+#define AVIARY_PSFLG_IN_PRQ_MAX 37,893
+#define AVIARY_PSFLG_IN_PRQ_HIGH 38,955
+#define AVIARY_PSFLG_IN_PRQ_NORMAL 39,1017
+#define AVIARY_PSFLG_IN_PRQ_LOW 40,1079
+#define AVIARY_PSFLG_FREE 41,1141
+#define AVIARY_PSFLG_EXITING 42,1203
+#define AVIARY_PSFLG_PENDING_EXIT 43,1265
+#define AVIARY_PSFLG_ACTIVE 44,1327
+#define AVIARY_PSFLG_IN_RUNQ 45,1389
+#define AVIARY_PSFLG_RUNNING 46,1451
+#define AVIARY_PSFLG_SUSPENDED 47,1513
+#define AVIARY_PSFLG_GC 48,1576
+#define AVIARY_PSFLG_BOUND 49,1639
+#define AVIARY_PSFLG_TRAP_EXIT 50,1702
+#define AVIARY_PSFLG_ACTIVE_SYS 51,1765
+#define AVIARY_PSFLG_RUNNING_SYS 52,1828
+#define AVIARY_PSFLG_PROXY 53,1891
+#define AVIARY_PSFLG_DELAYED_SYS 54,1954
+#define AVIARY_PSFLGS_PRIO_BITS 56,2018
+#define AVIARY_PSFLGS_PRIO_MASK 57,2052
+#define AVIARY_PSFLGS_ACT_PRIO_OFFSET 60,2148
+#define AVIARY_PSFLGS_USR_PRIO_OFFSET 61,2214
+#define AVIARY_PSFLGS_PRQ_PRIO_OFFSET 62,2280
+#define AVIARY_PSFLGS_ZERO_BIT_OFFSET 63,2346
+#define AVIARY_PSFLGS_QMASK_BITS 65,2413
+#define AVIARY_PSFLGS_QMASK 66,2448
+#define AVIARY_PSFLGS_IN_PRQ_MASK_OFFSET 68,2540
+#define AVIARY_PSFLG_BIT(71,2618
+#define AVIARY_RUNQ_IDX(74,2718
+#define AVIARY_PSFLG_BIT(78,2918
+#define AVIARY_PSFLGS_GET_PRQ_PRIO(81,3018
+#define AVIARY_RUNQ_FLGS_GET_NOB(84,3140
+#define AVIARY_PSFLGS_ACT_PRIO_MASK 87,3275
+#define AVIARY_PSFLGS_USR_PRIO_MASK 89,3376
+#define AVIARY_PSFLGS_PRQ_PRIO_MASK 91,3477
+typedef struct AviarySchedulerData_ AviarySchedulerData;96,3581
+typedef struct AviaryRunQueue_ AviaryRunQueue;97,3638
+typedef struct AviarySchedulerSleepInfo_ AviarySchedulerSleepInfo;98,3685
+    Uint flags;105,3857
+    int error_code;106,3873
+    Uint min_heap_size;111,4051
+    Uint min_vheap_size;113,4194
+    int priority;114,4259
+    Uint16 max_gen_gcs;115,4319
+    int scheduler;116,4401
+} AviarySpawnOpts;117,4420
+typedef struct AviaryProcList_ AviaryProcList;119,4440
+struct AviaryProcList_ 120,4487
+    int pid;121,4512
+    Uint64 started_interval;122,4525
+    AviaryProcList *next;next123,4554
+    AviaryProcList *prev;prev124,4580
+    Process *first;first128,4627
+    Process *last;last129,4647
+} AviaryRunPrioQueue;130,4666
+    aviary_smp_atomic32_t len;133,4706
+    aviary_aint32_t max_len;134,4737
+    int reds;135,4766
+} AviaryRunQueueInfo;136,4780
+typedef struct AviarySchedulerData_ AviarySchedulerData;139,4804
+typedef struct AviaryRunQueue_ AviaryRunQueue;141,4862
+struct process 143,4910
+    ucontext_t context;144,4927
+    Uint tid;145,5004
+    Uint status;146,5018
+    Uint heap_size;147,5035
+    Uint stack_size;148,5055
+    void *args;args150,5077
+    int (*start_routine)start_routine152,5094
+    void *stack;stack154,5129
+    void *htop;htop155,5146
+    void *stop;stop156,5162
+    aviary_smp_atomic32_t state;158,5179
+    Uint32 rcount;160,5213
+    int schedule_count;161,5232
+    aviary_proc_lock_t lock;163,5257
+    Process *next;next164,5286
+    AviarySchedulerData *scheduler_data;scheduler_data169,5367
+    aviary_atomic_t run_queue;170,5408
+        Uint64 short_interval;176,5511
+        Uint64 long_interval;177,5542
+    } worktime;178,5572
+    int is_working;179,5588
+} AviaryRunQueueSchedUtil;180,5608
+struct AviarySchedulerData_ 182,5636
+    ucontext_t context;183,5666
+    athr_tid tid;184,5743
+    Uint no;185,5761
+    Process *current_process;current_process186,5817
+    Process *free_process;free_process187,5847
+    AviaryRunQueue *run_queue;run_queue188,5874
+    AviarySchedulerSleepInfo *ssi;ssi189,5905
+    int cpu_id;190,5940
+    Uint64 reductions;191,5956
+struct AviaryRunQueue_ 194,5983
+    int idx;195,6008
+    aviary_smp_mtx_t mutex;197,6022
+    aviary_smp_cnd_t cond;198,6050
+    int waiting;200,6078
+    int woken;201,6095
+    aviary_atomic32_t flags;202,6110
+    AviarySchedulerData *scheduler;scheduler203,6139
+        AviaryProcList *pending_exiters;pending_exiters205,6188
+        Uint context_switches;206,6229
+        Uint reductions;207,6260
+        AviaryRunQueueInfo prio_info[prio_info209,6286
+        AviaryRunPrioQueue prio[prio210,6352
+    } procs;211,6415
+    AviaryRunQueueSchedUtil sched_util;213,6429
+struct AviarySchedulerSleepInfo_ 216,6473
+    AviarySchedulerSleepInfo *next;next217,6508
+    AviarySchedulerSleepInfo *prev;prev218,6544
+    aviary_smp_atomic32_t flags;219,6580
+    aviary_atomic32_t aux_work;221,6644
+    AviaryRunQueue runq;225,6696
+    char align[align226,6721
+} AviaryAlignedRunQueue;227,6795
+    AviarySchedulerData esd;232,6895
+    char align[align233,6924
+} AviaryAlignedSchedulerData;234,7003
+aviary_get_runq_current(238,7066
+aviary_smp_runq_lock(244,7194
+aviary_smp_runq_unlock(249,7296
+
+aviary_process.c,1376
+#define MAX_BIT 8,137
+#define HIGH_BIT 9,179
+#define NORMAL_BIT 10,222
+#define LOW_BIT 11,267
+Uint aviary_no_schedulers;14,311
+Uint aviary_no_run_queues;15,338
+AviaryAlignedRunQueue *aviary_aligned_run_queues;aviary_aligned_run_queues16,365
+AviaryAlignedSchedulerData *aviary_aligned_scheduler_data;aviary_aligned_scheduler_data17,415
+static aviary_tsd_key_t sched_data_key;19,475
+Uint aviary_default_process_flags;21,516
+    AviarySchedulerSleepInfo ssi;24,568
+    char align[align25,602
+} AviaryAlignedSchedulerSleepInfo;26,686
+AviaryAlignedSchedulerSleepInfo *aligned_sched_sleep_info;aligned_sched_sleep_info28,722
+AviarySchedulerData *aviary_scheduler_data;aviary_scheduler_data30,782
+#define AVIARY_SCHED_SLEEP_INFO_IDX(32,827
+enqueue_process(38,1120
+aviary_get_scheduler_data(62,1649
+unqueue_process(67,1772
+dequeue_process(88,2211
+check_requeue_process(120,2857
+init_scheduler_data(133,3208
+aviary_init_scheduling(170,4152
+ProcessMain(225,5690
+Schedule(235,5916
+SchedulerMain(372,9546
+SchedThreadFunc(380,9682
+static athr_tid aux_tid;389,9845
+aviary_start_schedulers(392,9876
+aviary_pre_init_process(424,10559
+#define AVIARY_ENQUEUE_NOT 429,10663
+#define AVIARY_ENQUEUE_NORMAL_QUEUE 430,10692
+check_enqueue_in_prio_queue(433,10749
+change_proc_schedule_state(479,12145
+schedule_process(534,13483
+aviary_create_process(551,13820
+
+aviary_main.c,15
+int main(3,18
+
+aviary_alloc.h,185
+#define AVIARY_ALLOC_H__2,25
+#define AVIARY_ALC_INLINE 4,51
+#define AVIARY_CACHE_LINE_SIZE 6,99
+#define AVIARY_CACHE_LINE_MASK 7,133
+#define AVIARY_ALC_CACHE_LINE_ALIGN_SIZE(9,192
+
+CMakeFiles/2.8.12.2/CompilerIdC/CMakeCCompilerId.c,4697
+# define ID_VOID_MAIN9,224
+# define COMPILER_ID 13,302
+# define COMPILER_VERSION_MAJOR 15,362
+# define COMPILER_VERSION_MINOR 16,420
+# define COMPILER_VERSION_PATCH 17,482
+#  define COMPILER_VERSION_TWEAK 20,633
+# define COMPILER_ID 24,734
+# define COMPILER_VERSION_MAJOR 25,767
+# define COMPILER_VERSION_MINOR 26,815
+#  define COMPILER_VERSION_PATCH 28,905
+# define COMPILER_ID 32,999
+# define COMPILER_VERSION_MAJOR 33,1028
+# define COMPILER_VERSION_MINOR 34,1081
+# define COMPILER_VERSION_PATCH 35,1134
+# define COMPILER_ID 38,1255
+# define COMPILER_VERSION_MAJOR 39,1290
+# define COMPILER_VERSION_MINOR 40,1362
+# define COMPILER_VERSION_PATCH 41,1434
+# define COMPILER_ID 44,1535
+# define COMPILER_VERSION_MAJOR 46,1595
+# define COMPILER_VERSION_MINOR 47,1648
+# define COMPILER_ID 50,1733
+# define COMPILER_VERSION_MAJOR 52,1790
+# define COMPILER_VERSION_MINOR 53,1845
+# define COMPILER_ID 56,1927
+#  define COMPILER_VERSION_MAJOR 59,2012
+#  define COMPILER_VERSION_MINOR 60,2065
+#  define COMPILER_VERSION_PATCH 61,2124
+#  define COMPILER_VERSION_MAJOR 64,2217
+#  define COMPILER_VERSION_MINOR 65,2269
+#  define COMPILER_VERSION_PATCH 66,2327
+# define COMPILER_ID 70,2417
+# define COMPILER_VERSION_MAJOR 72,2468
+# define COMPILER_VERSION_MINOR 73,2519
+# define COMPILER_VERSION_PATCH 74,2574
+# define COMPILER_ID 77,2652
+# define COMPILER_VERSION_MAJOR 79,2713
+# define COMPILER_VERSION_MINOR 80,2770
+# define COMPILER_VERSION_PATCH 81,2832
+#  define COMPILER_ID 85,2952
+#   define COMPILER_ID 88,3009
+#   define COMPILER_ID 90,3045
+#  define COMPILER_VERSION_MAJOR 93,3113
+#  define COMPILER_VERSION_MINOR 94,3164
+#  define COMPILER_VERSION_PATCH 95,3219
+# define COMPILER_ID 99,3304
+# define COMPILER_VERSION_MAJOR 100,3331
+# define COMPILER_VERSION_MINOR 101,3377
+#  define COMPILER_VERSION_PATCH 103,3463
+# define COMPILER_ID 107,3552
+# define COMPILER_VERSION_MAJOR 108,3580
+# define COMPILER_VERSION_MINOR 109,3626
+# define COMPILER_ID 112,3718
+# define COMPILER_VERSION_MAJOR 114,3788
+# define COMPILER_VERSION_MINOR 115,3857
+# define COMPILER_VERSION_PATCH 116,3932
+# define COMPILER_ID 119,4033
+# define COMPILER_ID 122,4095
+# define COMPILER_ID 125,4147
+# define COMPILER_VERSION_MAJOR 126,4174
+# define COMPILER_VERSION_MINOR 127,4220
+#  define COMPILER_VERSION_PATCH 129,4306
+# define COMPILER_ID 133,4397
+# define COMPILER_VERSION_MAJOR 135,4449
+# define COMPILER_VERSION_MINOR 136,4501
+#   define COMPILER_VERSION_PATCH 140,4640
+#   define COMPILER_VERSION_PATCH 143,4745
+#  define COMPILER_VERSION_TWEAK 147,4848
+# define COMPILER_ID 152,4976
+# define COMPILER_VERSION_MAJOR 154,5046
+# define COMPILER_VERSION_MINOR 155,5108
+# define COMPILER_VERSION_PATCH 156,5177
+# define COMPILER_ID 160,5361
+# define COMPILER_ID 165,5527
+# define COMPILER_ID 170,5670
+#  define COMPILER_VERSION_MAJOR 172,5717
+#  define COMPILER_VERSION_MINOR 173,5764
+#  define COMPILER_VERSION_PATCH 174,5815
+# define COMPILER_ID 177,5934
+#  define COMPILER_VERSION_MAJOR 180,6037
+#  define COMPILER_VERSION_MINOR 181,6101
+#  define COMPILER_VERSION_PATCH 182,6169
+#  define COMPILER_VERSION_MAJOR 185,6276
+#  define COMPILER_VERSION_MINOR 186,6336
+#  define COMPILER_VERSION_PATCH 187,6400
+# define COMPILER_ID 194,6662
+# define COMPILER_ID 197,6735
+# define COMPILER_ID 200,6791
+char const* info_compiler 208,7090
+# define PLATFORM_ID 212,7261
+# define PLATFORM_ID 215,7317
+# define PLATFORM_ID 218,7375
+# define PLATFORM_ID 221,7430
+# define PLATFORM_ID 224,7523
+# define PLATFORM_ID 227,7604
+# define PLATFORM_ID 230,7683
+# define PLATFORM_ID 233,7763
+# define PLATFORM_ID 236,7832
+# define PLATFORM_ID 239,7958
+# define PLATFORM_ID 242,8044
+# define PLATFORM_ID 245,8116
+# define PLATFORM_ID 248,8171
+# define PLATFORM_ID 251,8262
+# define PLATFORM_ID 254,8337
+# define PLATFORM_ID 257,8429
+# define PLATFORM_ID 260,8506
+# define PLATFORM_ID 263,8604
+# define PLATFORM_ID 266,8661
+# define PLATFORM_ID 269,8718
+# define PLATFORM_ID 272,8788
+# define PLATFORM_ID 275,8860
+# define PLATFORM_ID 278,8950
+# define PLATFORM_ID 281,9048
+# define PLATFORM_ID 284,9141
+# define PLATFORM_ID 287,9200
+#  define ARCHITECTURE_ID 298,9543
+#  define ARCHITECTURE_ID 301,9621
+#  define ARCHITECTURE_ID 304,9678
+#  define ARCHITECTURE_ID 307,9734
+#  define ARCHITECTURE_ID 310,9791
+#  define ARCHITECTURE_ID 313,9847
+#  define ARCHITECTURE_ID 316,9914
+#  define ARCHITECTURE_ID 320,9958
+#define DEC(324,10045
+#define HEX(335,10394
+char const info_version[info_version347,10756
+char const* info_platform 367,11416
+char const* info_arch 368,11484
+void main(375,11651
+int main(377,11672
+
+athr_mutex.h,76
+#define ATHR_MUTEX_H__2,23
+athr_mutex_lock(6,87
+athr_mutex_unlock(11,192
+
+aviary_misc_utils.c,397
+struct aviary_cpu_info_t_ 7,123
+    int configured;8,151
+    int online;9,171
+    int available;10,187
+    int topology_size;11,206
+    aviary_cpu_topology_t *topology;topology12,229
+    pid_t pid;13,266
+AviaryCpuInfoCreate(17,305
+AviaryCpuInfoDestory(30,639
+AviaryCpuInfoUpdate(41,875
+aviary_get_cpu_configured(60,1280
+aviary_get_cpu_online(70,1476
+aviary_get_cpu_available(80,1660
+
+athread.c,235
+    void *(*thr_func)thr_func8,159
+    void *arg;arg9,190
+} athr_thr_wrap_data__;11,236
+static void *thr_wrapper(thr_wrapper13,261
+athr_thr_create(28,588
+athr_tsd_key_create(80,1679
+athr_tsd_set(85,1804
+athr_tsd_get(90,1920
+
+aviary_process_lock.h,988
+#define AVIARY_PROCESS_LOCK_H__2,32
+#define AVIARY_PROC_LOCK_MAX_BIT 7,116
+typedef aviary_aint32_t AviaryProcLocks;9,152
+typedef struct aviary_proc_lock_t_ 11,194
+    athr_atomic32_t flags;12,231
+    athr_atomic32_t refc;13,258
+} aviary_proc_lock_t;14,284
+        aviary_mtx_t mtx;18,336
+        char buf[buf19,362
+    } u;20,436
+} aviary_pix_lock_t;21,445
+#define AVIARY_PROC_LOCK_MAIN 31,713
+#define AVIARY_PROC_LOCK_LINK 40,921
+#define AVIARY_PROC_LOCK_MSGQ 48,1117
+#define AVIARY_PROC_LOCK_STATUS 57,1327
+#define AVIARY_PROC_LOCK_WAITER_SHIFT 60,1423
+#define AVIARY_PROC_LOCKS_ALL_MINOR 62,1493
+#define AVIARY_PROC_LOCK_FLGS_BAND_(66,1629
+#define AVIARY_PROC_LOCK_FLGS_BOR_ACQB_(69,1822
+#define AVIARY_PROC_LOCK_FLGS_CMPXCHG_ACQB_(72,2019
+#define AVIARY_PROC_LOCK_FLGS_CMPXCHG_RELB_(76,2310
+aviary_smp_proc_raw_trylock__(96,3069
+aviary_smp_proc_lock__(120,3695
+aviary_smp_proc_unlock__(142,4227
+aviary_smp_proc_lock(193,5716
+aviary_smp_proc_unlock(199,5840
+
+athr_atomics.c,183
+athr_sint32_t athr_atomic32_read(3,27
+athr_sint32_t athr_atomic32_cmpxchg_relb(9,163
+athr_sint32_t athr_atomic32_cmpxchg_acqb(15,369
+athr_sint32_t athr_atomic32_cmpxchg_mb(21,575
+
+aviary_errno.h,52
+#define AVIARY_ERRNO_H__2,25
+#define ENOTSUP 6,71
+
+_main.c,1710
+#define SCHEDULE_PYTHON 11,183
+#define MMAP_ALLOC 12,209
+#define DEFAULT_STACK_SIZE 13,230
+typedef int (*fthread_func_t)fthread_func_t15,270
+typedef int fthread_t;16,309
+struct list_head 17,332
+    struct list_head *next,next18,351
+    struct list_head *next, *prev;prev18,351
+typedef struct _fthread_s21,390
+    fthread_t id;23,418
+    void * stack;24,436
+    fthread_func_t thread;25,454
+    void *args;args26,481
+    int status;27,497
+    struct list_head list;28,513
+    ucontext_t ctx;29,540
+    PyThreadState *tstate;tstate30,560
+} fthread_s;31,587
+    READY 34,608
+    RUNNING 35,623
+    SUSPEND 36,640
+    DEAD 37,657
+static inline void INIT_LIST_HEAD(40,675
+static inline void __list_add(46,778
+static inline void list_add(63,1183
+static inline void list_add_tail(76,1511
+static inline void __list_del(88,1818
+static inline void __list_del_entry(100,2141
+static inline void list_del(105,2246
+struct list_head schedule_list 121,2635
+fthread_t tid 123,2703
+jmp_buf c_env;124,2722
+int c_status 125,2737
+ucontext_t main_ctx;126,2759
+#undef offsetof128,2781
+#define offsetof(130,2824
+#define offsetof(132,2893
+#define container_of(135,2964
+volatile fthread_s *g_current g_current139,3159
+volatile fthread_s *prev prev140,3197
+fthread_add_to_sched_list(143,3236
+fthread_set_current_thread(149,3331
+fthread_get_first_runnable_thread(155,3408
+fthread_create(167,3705
+fthread_get_current_thread(202,4432
+fthread_main(208,4493
+fthread_resched(217,4734
+fthread_do_scheduling(265,6299
+fthread_start(272,6348
+fthread_join(283,6554
+fthread_yield(296,6735
+fthread_finalize(305,6959
+void print_subinterp(316,7143
+void test_main(335,7665
+int main(359,8284
+
+sys.h,263
+#define SYS_H__2,16
+#define AIVARY_INLINE 6,54
+#define AVIARY_GLOBAL_INLINE 8,84
+typedef unsigned long long Uint64;10,135
+typedef unsigned long long Uint;12,171
+typedef unsigned int Uint32;14,205
+typedef unsigned short Uint16;16,235
+#define ASSERT(18,267
+
+global.h,24
+#define GLOBAL_H__2,19
+
+aviary_threads.h,723
+#define AVIARY_THREADS_H__2,27
+#define AVIARY_SCHEDULER_IDX(9,144
+typedef int aviary_aint32_t;13,347
+typedef long long aviary_aint64_t;14,376
+typedef aviary_aint32_t athr_sint32_t;16,412
+typedef aviary_aint64_t athr_sint64_t;17,451
+typedef athr_tsd_key aviary_tsd_key_t;19,491
+    athr_mutex mtx;22,548
+} aviary_mtx_t;23,568
+    athr_cond cond;26,602
+} aviary_cnd_t;27,622
+aviary_mtx_lock(31,686
+aviary_mtx_unlock(36,781
+aviary_tsd_key_create(41,880
+aviary_tsd_set(46,1005
+aviary_tsd_get(51,1111
+#define aviary_atomic32_read_nob 55,1183
+#define aviary_atomic32_cmpxchg_relb 56,1235
+#define aviary_atomic32_cmpxchg_acqb 57,1299
+#define aviary_atomic32_cmpxchg_mb 58,1363
+#define aivary_aint32_t 59,1423
+
+aviary_cpu_topology.c,298
+    int bind_id;5,79
+    int bound_id;6,96
+} AviaryCpuBindData;7,114
+static aviary_cpu_info_t *cpuinfo;cpuinfo9,136
+static AviaryCpuBindData *scheduler2cpu_map;scheduler2cpu_map11,172
+get_logical_processors(14,230
+void AviaryPreEarlyInitCpuTopology(23,487
+aviary_init_cpu_topology(34,695
+
+athread.h,264
+#define ATHREAD_H__2,20
+typedef pthread_t athr_tid;6,63
+typedef pthread_key_t athr_tsd_key;7,91
+    int detached;10,145
+    int suggested_stack_size;11,215
+} athr_thr_opts;12,296
+typedef int athr_sint32_t;14,314
+#define ATHR_THR_OPTS_DEFAULT_INITER 25,493
+
+athr_atomics.h,392
+#define ATHR_ATOMICS_H__2,25
+typedef athr_sint32_t athr_atomic32_t;8,123
+#define ATHR_INLINE_ATMC32_FUNC_NAME_(10,163
+#define ATHR_ATMC32_FUNC__(11,212
+#define ATHR_NAINT32_T__ 13,294
+#define ATHR_COMPILER_BARRIER 15,334
+static inline athr_sint32_t ATHR_ATMC32_FUNC__(18,406
+static inline athr_sint32_t ATHR_ATMC32_FUNC__(24,581
+static inline athr_sint32_t ATHR_ATMC32_FUNC__(34,878
+
+aviary_cpu_topology.h,37
+#define AVIARY_CPU_TOPOLOGY_H__2,32
+
+aviary_misc_utils.h,269
+#define __AVIARY_MISC_UTILS_H__2,32
+typedef struct aviary_cpu_info_t_ aviary_cpu_info_t;4,65
+    int node;6,135
+    int processor;7,149
+    int processor_node;8,168
+    int core;9,192
+    int thread;10,206
+    int logical;11,222
+} aviary_cpu_topology_t;12,239
+
+aviary_mutex.h,276
+#define AVIARY_MUTEX_H__2,25
+#define ATHR_MTX_QLOCK_TYPE__ 6,73
+typedef struct athr_mutex_ athr_mutex;8,120
+struct athr_mutex_ 9,159
+    pthread_mutex_t pt_mtx;10,180
+typedef struct athr_cond_ athr_cond;13,212
+struct athr_cond_ 14,249
+    pthread_cond_t pt_cnd;15,269
+
+aviary_smp.h,402
+#define AVIARY_SMP_H__2,23
+typedef aviary_mtx_t aviary_smp_mtx_t;5,75
+typedef aviary_cnd_t aviary_smp_cnd_t;6,114
+#define aviary_smp_atomic32_t 8,154
+#define aviary_smp_atomic32_read_nob 10,203
+#define aviary_smp_atomic32_cmpxchg_acqb 11,265
+#define aviary_smp_atomic32_cmpxchg_relb 12,335
+#define aviary_smp_atomic32_cmpxchg_mb 13,405
+aviary_smp_mtx_lock(16,491
+aviary_smp_mtx_unlock(21,584
+
+aviary_init.c,133
+static int no_schedulers;5,71
+static int no_schedulers_online;6,97
+early_init(9,142
+aviary_init(30,513
+void aviary_start(45,810
+
+aviary_atomic.h,169
+#define AVIARY_ATOMIC_H__2,26
+    volatile athr_sint64_t counter;8,116
+} aviary_atomic_t;9,152
+    volatile athr_sint32_t counter;12,189
+} aviary_atomic32_t;13,225
+
+aviary_process_lock.c,29
+aviary_proc_lock_failed(2,5
+
+athr_mutex.c,0
