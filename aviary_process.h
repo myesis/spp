@@ -4,15 +4,15 @@
 typedef struct process Process;
 
 #include "sys.h"
-#ifndef AVIARY_PROCESS_LOCK_DEFINE_MACRO
+
 #define AVIARY_PROCESS_LOCK_DEFINE_MACRO
 #include "aviary_process_lock.h"
 #undef AVIARY_PROCESS_LOCK_DEFINE_MACRO
-#endif
 
-#include "athread.h"
+//#include "athread.h"
 #include "aviary_smp.h"
-#include "aviary_atomic.h"
+//#include "aviary_atomic.h"
+#include "aviary_threads.h"
 #include "aviary_alloc.h"
 
 #define AVIARY_DEFAULT_MAX_PROCESSES (1 << 18)
@@ -33,6 +33,38 @@ typedef struct process Process;
 
 #define AVIARY_RUNQ_FLGS_QMASK \
   ((((Uint32) 1) << AVIARY_NO_PRIO_LEVELS) - 1)
+
+#define AVIARY_RUNQ_FLGS_EMIGRATE_SHFT \
+  AVIARY_NO_PRIO_LEVELS
+#define AVIARY_RUNQ_FLGS_IMMIGRATE_SHFT \
+  (AVIARY_RUNQ_FLGS_EMIGRATE_SHFT + AVIARY_NO_PRIO_LEVELS)
+#define AVIARY_RUNQ_FLGS_EVACUATE_SHFT \
+  (AVIARY_RUNQ_FLGS_IMMIGRATE_SHFT + AVIARY_NO_PRIO_LEVELS)
+#define AVIARY_RUNQ_FLGS_EMIGRATE_QMASK \
+  (AVIARY_RUNQ_FLGS_QMASK << AVIARY_RUNQ_FLGS_EMIGRATE_SHFT)
+#define AVIARY_RUNQ_FLGS_IMMIGRATE_QMASK \
+  (AVIARY_RUNQ_FLGS_QMASK << AVIARY_RUNQ_FLGS_IMMIGRATE_SHFT)
+#define AVIARY_RUNQ_FLGS_EVACUATE_QMASK \
+  (AVIARY_RUNQ_FLGS_QMASK << AVIARY_RUNQ_FLGS_EVACUATE_SHFT)
+
+#define AVIARY_RUNQ_FLG_BASE2 \
+  (AVIARY_RUNQ_FLGS_EVACUATE_SHFT + AVIARY_NO_PRIO_LEVELS)
+
+#define AVIARY_RUNQ_FLG_OUT_OF_WORK \
+  (((Uint32) 1) << (AVIARY_RUNQ_FLG_BASE2 + 0))
+#define AVIARY_RUNQ_FLG_HALFTIME_OUT_OF_WORK \
+  (((Uint32) 1) << (AVIARY_RUNQ_FLG_BASE2 + 1))
+#define AVIARY_RUNQ_FLG_SUSPENDED \
+  (((Uint32) 1) << (AVIARY_RUNQ_FLG_BASE2 + 2))
+#define AVIARY_RUNQ_FLG_CHK_CPU_BIND \
+  (((Uint32) 1) << (AVIARY_RUNQ_FLG_BASE2 + 3))
+#define AVIARY_RUNQ_FLG_INACTIVE \
+  (((Uint32) 1) << (AVIARY_RUNQ_FLG_BASE2 + 4))
+#define AVIARY_RUNQ_FLG_NONEMPTY \
+  (((Uint32) 1) << (AVIARY_RUNQ_FLG_BASE2 + 5))
+#define AVIARY_RUNQ_FLG_PROTECTED \
+  (((Uint32) 1) << (AVIARY_RUNQ_FLG_BASE2 + 6))
+
 
 #define RESCHEDULE_LOW       8
 
@@ -92,6 +124,30 @@ typedef struct process Process;
     (AVIARY_PSFLGS_PRIO_MASK << AVIARY_PSFLGS_USR_PRIO_OFFSET)
 #define AVIARY_PSFLGS_PRQ_PRIO_MASK \
     (AVIARY_PSFLGS_PRIO_MASK << AVIARY_PSFLGS_PRQ_PRIO_OFFSET)
+
+#define AVIARY_RUNQ_FLGS_INIT(RQ, INIT)                                   \
+    aviary_smp_atomic32_init_nob(&(RQ)->flags, (aviary_aint32_t) (INIT))
+#define AVIARY_RUNQ_FLGS_SET(RQ, FLGS)                                    \
+    ((Uint32) aviary_smp_atomic32_read_bor_relb(&(RQ)->flags,             \
+                                              (aviary_aint32_t) (FLGS)))
+#define AVIARY_RUNQ_FLGS_BSET(RQ, MSK, FLGS)                              \
+    ((Uint32) aviary_smp_atomic32_read_bset_relb(&(RQ)->flags,            \
+                                               (aviary_aint32_t) (MSK),   \
+                                               (aviary_aint32_t) (FLGS)))
+#define AVIARY_RUNQ_FLGS_UNSET(RQ, FLGS)                                  \
+    ((Uint32) aviary_smp_atomic32_read_band_relb(&(RQ)->flags,            \
+                                               (aviary_aint32_t) ~(FLGS)))
+#define AVIARY_RUNQ_FLGS_GET(RQ)                                          \
+    ((Uint32) aviary_smp_atomic32_read_acqb(&(RQ)->flags))
+#define AVIARY_RUNQ_FLGS_GET_NOB(RQ)                                      \
+    ((Uint32) aviary_smp_atomic32_read_nob(&(RQ)->flags))
+#define AVIARY_RUNQ_FLGS_GET_MB(RQ)                                       \
+    ((Uint32) aviary_smp_atomic32_read_mb(&(RQ)->flags))
+#define AVIARY_RUNQ_FLGS_READ_BSET(RQ, MSK, FLGS)                         \
+    ((Uint32) aviary_smp_atomic32_read_bset_relb(&(RQ)->flags,            \
+                                               (aviary_aint32_t) (MSK),   \
+                                               (aviary_aint32_t) (FLGS)))
+
 
 
 
@@ -205,6 +261,8 @@ struct AviaryRunQueue_ {
     int waiting;
     int woken;
     aviary_atomic32_t flags;
+    aviary_aint32_t len;
+    aviary_aint32_t max_len;
     AviarySchedulerData *scheduler;
     struct {
         AviaryProcList *pending_exiters;
@@ -260,10 +318,9 @@ aviary_get_runq_proc(Process *p)
 {
     return (AviaryRunQueue *) aviary_atomic_read_nob(&p->run_queue);
 }
-#ifndef AVIARY_PROCESS_LOCK_DEFINE_INLINE
+
 #define AVIARY_PROCESS_LOCK_DEFINE_INLINE
 #include "aviary_process_lock.h"
 #undef AVIARY_PROCESS_LOCK_DEFINE_INLINE
-#endif
 
 #endif

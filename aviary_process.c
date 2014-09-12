@@ -2,13 +2,15 @@
 
 #include "aviary_threads.h"
 #include "aviary_process.h"
-#include "aviary_process_lock.h"
+//#include "aviary_process_lock.h"
 #include "aviary_alloc.h"
 
 #define MAX_BIT       (1 << PRIORITY_MAX)
 #define HIGH_BIT      (1 << PRIORITY_HIGH)
 #define NORMAL_BIT    (1 << PRIORITY_NORMAL)
 #define LOW_BIT       (1 << PRIORITY_LOW)
+
+#define RUNQ_SET_RQ(X, RQ) aviary_smp_atomic_set_nob((X), (aviary_aint_t) (RQ))
 
 
 Uint aviary_no_schedulers;
@@ -25,14 +27,67 @@ typedef union {
     char align[AVIARY_ALC_CACHE_LINE_ALIGN_SIZE(sizeof(AviarySchedulerSleepInfo))];
 } AviaryAlignedSchedulerSleepInfo;
 
+static struct {
+    aviary_smp_mtx_t update_mtx;
+    aviary_smp_atomic32_t no_runqs;
+    int last_active_runqs;
+    int forced_check_balance;
+    aviary_smp_atomic32_t checking_balance;
+    int halftime;
+    int full_reds_history_index;
+    struct {
+        int active_runqs;
+        int reds;
+        aviary_aint32_t max_len;
+    } prev_rise;
+    Uint n;
+} balance_info;
+
+
 AviaryAlignedSchedulerSleepInfo *aligned_sched_sleep_info;
 
 AviarySchedulerData *aviary_scheduler_data;
+
+static aviary_smp_atomic32_t no_empty_run_queues;
 
 #define AVIARY_SCHED_SLEEP_INFO_IDX(IDX)                                    \
     (ASSERT(-1 <= ((int) (IDX))                                          \
                  && ((int) (IDX)) < ((int) aviary_no_schedulers)),         \
      &aligned_sched_sleep_info[(IDX)].ssi)
+
+AviarySchedulerData *
+aviary_get_scheduler_data(void) {
+    return (AviarySchedulerData *) aviary_tsd_get(sched_data_key);
+}
+
+static inline void
+aviary_smp_inc_runq_len(AviaryRunQueue *rq, AviaryRunQueueInfo *rqi, int prio)
+{
+    aviary_aint32_t len;
+
+    len = aviary_smp_atomic32_read_nob(&rqi->len);
+
+    if (len == 0) {
+        aviary_smp_atomic32_read_bor_nob(&rq->flags,
+            (aviary_aint32_t) (1 << prio));
+    }
+    len++;
+
+    if (rqi->max_len < len) {
+        rqi->max_len = len;
+    }
+
+    aviary_smp_atomic32_set_relb(&rqi->len, len);
+
+    if (rq->len == 0) {
+        //        aviary_non_empty_runq(rq);
+    }
+
+    rq->len++;
+    if (rq->max_len < rq->len) {
+        rq->max_len = len;
+    }
+}
 
 static inline void
 enqueue_process(AviaryRunQueue *runq, int prio, Process *p)
@@ -56,11 +111,6 @@ enqueue_process(AviaryRunQueue *runq, int prio, Process *p)
     else
         rpq->first = p;
     rpq->last = p;
-}
-
-AviarySchedulerData *
-aviary_get_scheduler_data(void) {
-    return (AviarySchedulerData *) aviary_tsd_get(sched_data_key);
 }
 
 static inline void
@@ -98,7 +148,7 @@ dequeue_process(AviaryRunQueue *runq, int prio_q, aviary_aint32_t *statep) {
         return NULL;
     }
 
-    __asm__ __volatile__("" : : : "memory");
+    ATHR_COMPILER_BARRIER;
 
     state = aviary_smp_atomic32_read_nob(&p->state);
     if (statep) {
@@ -135,7 +185,7 @@ init_scheduler_data(AviarySchedulerData* esdp, int num,
                     AviaryRunQueue* runq,
                     char** daww_ptr, size_t daww_sz)
 {
-    //    erts_bits_init_state(&esdp->erl_bits_state);
+    //    aviary_bits_init_state(&esdp->erl_bits_state);
     //    esdp->match_pseudo_process = NULL;
     esdp->free_process = NULL;
 
@@ -148,7 +198,7 @@ init_scheduler_data(AviarySchedulerData* esdp, int num,
     //    esdp->virtual_reds = 0;
     esdp->cpu_id = -1;
 
-    //    erts_init_atom_cache_map(&esdp->atom_cache_map);
+    //    aviary_init_atom_cache_map(&esdp->atom_cache_map);
 
     esdp->run_queue = runq;
     esdp->run_queue->scheduler = esdp;
@@ -163,7 +213,7 @@ init_scheduler_data(AviarySchedulerData* esdp, int num,
     esdp->reductions = 0;
 
     //    init_sched_wall_time(&esdp->sched_wall_time);
-    //    erts_port_task_handle_init(&esdp->nosuspend_port_task_handle);
+    //    aviary_port_task_handle_init(&esdp->nosuspend_port_task_handle);
 }
 
 void
@@ -185,6 +235,7 @@ aviary_init_scheduling(
         rq->idx = idx;
         rq->waiting = 0;
         rq->woken = 0;
+        AVIARY_RUNQ_FLGS_INIT(rq, AVIARY_RUNQ_FLG_NONEMPTY);
 
         rq->procs.pending_exiters = NULL;
         rq->procs.context_switches = 0;
@@ -231,6 +282,173 @@ ProcessMain(Uint32 low32, Uint32 hi32) {
     /* TODO: Mark process flag to exit */
 }
 
+static int
+try_steal_task_from_victim(AviaryRunQueue *rq, int *rq_lockedp, AviaryRunQueue *vrq, Uint32 flags)
+{
+    Uint32 procs_qmask = flags & AVIARY_RUNQ_FLGS_PROCS_QMASK;
+    int max_prio_bit;
+    AviaryRunPrioQueue *rpq;
+
+    if (*rq_lockedp) {
+        aviary_smp_runq_unlock(rq);
+        *rq_lockedp = 0;
+    }
+
+    aviary_smp_runq_lock(vrq);
+
+    while (procs_qmask) {
+        Process *prev_proc;
+        Process *proc;
+
+        max_prio_bit = procs_qmask & -procs_qmask;
+        switch (max_prio_bit) {
+        case MAX_BIT:
+            rpq = &vrq->procs.prio[PRIORITY_MAX];
+            break;
+        case HIGH_BIT:
+            rpq = &vrq->procs.prio[PRIORITY_HIGH];
+            break;
+        case NORMAL_BIT:
+        case LOW_BIT:
+            rpq = &vrq->procs.prio[PRIORITY_NORMAL];
+            break;
+        case 0:
+            goto no_procs;
+        default:
+            ASSERT(!"Invalid queue mask");
+            goto no_procs;
+        }
+
+        prev_proc = NULL;
+        proc = rpq->first;
+
+        while (proc) {
+            aviary_aint32_t state = aviary_smp_atomic32_read_acqb(&proc->state);
+            if (!(AVIARY_PSFLG_BOUND & state)) {
+                /* Steal process */
+                int prio = (int) AVIARY_PSFLGS_GET_PRQ_PRIO(state);
+                AviaryRunQueueInfo *rqi = &vrq->procs.prio_info[prio];
+                unqueue_process(vrq, rpq, rqi, prio, prev_proc, proc);
+                aviary_smp_runq_unlock(vrq);
+                RUNQ_SET_RQ(&proc->run_queue, rq);
+
+                aviary_smp_runq_lock(rq);
+                *rq_lockedp = 1;
+                enqueue_process(rq, prio, proc);
+                return !0;
+            }
+            prev_proc = proc;
+            proc = proc->next;
+        }
+
+        procs_qmask &= ~max_prio_bit;
+    }
+
+no_procs:
+    aviary_smp_runq_unlock(vrq);
+
+    return 0;
+}
+
+static inline int
+check_possible_steal_victim(AviaryRunQueue *rq, int *rq_lockedp, int vix)
+{
+    AviaryRunQueue *vrq = AVIARY_RUNQ_IDX(vix);
+    Uint32 flags = AVIARY_RUNQ_FLGS_GET(vrq);
+    if ((flags & (AVIARY_RUNQ_FLG_NONEMPTY
+                | AVIARY_RUNQ_FLG_PROTECTED)) == AVIARY_RUNQ_FLG_NONEMPTY) {
+        return try_steal_task_from_victim(rq, rq_lockedp, vrq, flags);
+    } else {
+        return 0;
+    }
+}
+
+static inline Uint32
+empty_protected_runq(AviaryRunQueue *rq)
+{
+    Uint32 old_flags = AVIARY_RUNQ_FLGS_BSET(rq,
+        AVIARY_RUNQ_FLG_NONEMPTY|AVIARY_RUNQ_FLG_PROTECTED,
+        AVIARY_RUNQ_FLG_PROTECTED);
+    return old_flags;
+}
+
+#define AVIARY_NO_USED_RUNQS_SHIFT 16
+#define AVIARY_NO_RUNQS_MASK 0xffff
+
+static inline void
+get_no_runqs(int *active, int *used)
+{
+    aviary_aint32_t no_runqs = aviary_smp_atomic32_read_nob(&balance_info.no_runqs);
+    if (active) {
+        *active = (int) (no_runqs & AVIARY_NO_RUNQS_MASK);
+    }
+    if (used) {
+        *used = (int) ((no_runqs >> AVIARY_NO_USED_RUNQS_SHIFT) & AVIARY_NO_RUNQS_MASK);
+    }
+}
+
+static int
+try_steal_task(AviaryRunQueue *rq)
+{
+    int res, rq_locked, vix, active_rqs, blnc_rqs;
+    Uint32 flags;
+
+    flags = empty_protected_runq(rq);
+    if (flags & AVIARY_RUNQ_FLG_SUSPENDED) {
+        return 0;
+    }
+
+    get_no_runqs(&active_rqs, &blnc_rqs);
+
+    if (active_rqs > blnc_rqs) {
+        active_rqs = blnc_rqs;
+    }
+
+    if (rq->idx < active_rqs) {
+        if (active_rqs < blnc_rqs) {
+            int no = blnc_rqs - active_rqs;
+            int stop_idx = vix = active_rqs + rq->idx % no;
+            while (aviary_smp_atomic32_read_acqb(&no_empty_run_queues) < blnc_rqs) {
+                res = check_possible_steal_victim(rq, &rq_locked, vix);
+                if (res) {
+                    goto done;
+                }
+                vix++;
+                if (vix >= blnc_rqs) {
+                    vix = active_rqs;
+                }
+                if (vix == stop_idx) {
+                    break;
+                }
+            }
+        }
+
+        vix = rq->idx;
+
+        while (aviary_smp_atomic32_read_acqb(&no_empty_run_queues) < blnc_rqs) {
+            vix++;
+            if (vix >= active_rqs) {
+                vix = 0;
+            }
+            if (vix == rq->idx) {
+                break;
+            }
+
+            res = check_possible_steal_victim(rq, &rq_locked, vix);
+            if (res) {
+                goto done;
+            }
+        }
+    }
+
+done:
+    if (!rq_locked) {
+        aviary_smp_runq_lock(rq);
+    }
+
+    return res;
+}
+
 Process *
 Schedule(Process *p, int calls) {
     AviarySchedulerData *asdp;
@@ -258,8 +476,27 @@ sched_out_proc:
         asdp = p->scheduler_data;
         ASSERT(asdp->current_process == p
             || asdp->free_process == p);
+        asdp->current_process = NULL;
+        p->scheduler_data = NULL;
     }
 
+continue_check_activities_to_run:
+    rq = aviary_get_runq_current(asdp);
+
+    flags = AVIARY_RUNQ_FLGS_GET_NOB(rq);
+
+    if ((!(flags & AVIARY_RUNQ_FLGS_QMASK))) {
+        flags= AVIARY_RUNQ_FLGS_GET_NOB(rq);
+        if (flags & AVIARY_RUNQ_FLG_SUSPENDED)
+        ;
+        if (flags & AVIARY_RUNQ_FLG_INACTIVE)
+        ;//empty_runq(rq);
+        while (1) {
+            if (try_steal_task(rq)) {
+                goto continue_check_activities_to_run;
+            }
+        }
+    }
 pick_next_process: {
     aviary_aint32_t psflg_band_mask;
     int prio_q;
@@ -321,9 +558,9 @@ pick_next_process: {
                     == AVIARY_PSFLG_SUSPENDED)) {
                 if (state & AVIARY_PSFLG_FREE) {
 #ifdef AVIARY_SMP
-                    erts_smp_proc_dec_refc(p);
+                    aviary_smp_proc_dec_refc(p);
 #else
-                    //                    erts_free_proc(p);
+                    //                    aviary_free_proc(p);
 #endif
                 }
 #if 0
@@ -414,8 +651,7 @@ aviary_start_schedulers(void) {
 
     aviary_no_schedulers = actual;
 
-    //    AVIARY_THR_MEMORY_BARRIER;
-    __asm__ __volatile__("" : : : "memory");
+    ATHR_COMPILER_BARRIER;
 
     /* create auxilairy thread */
 }
@@ -596,7 +832,7 @@ aviary_create_process(
     p->flags = aviary_default_process_flags;
     p->schedule_count = 0;
     p->rcount = 0;
-    p->stack = AVIARY_STACK_ALLOC(sz);
+    p->stack = aviary_mmap(sz);
     p->stack_size = sz;
     p->stop = p->stack + sz - 1024;
     p->parent = NULL;

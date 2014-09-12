@@ -9,9 +9,15 @@ typedef aviary_cnd_t aviary_smp_cnd_t;
 
 #define aviary_smp_atomic32_init_nob aviary_atomic32_init_nob
 #define aviary_smp_atomic32_read_nob aviary_atomic32_read_nob
+#define aviary_smp_atomic32_read_acqb aviary_atomic32_read_acqb
 #define aviary_smp_atomic32_cmpxchg_acqb aviary_atomic32_cmpxchg_acqb
 #define aviary_smp_atomic32_cmpxchg_relb aviary_atomic32_cmpxchg_relb
 #define aviary_smp_atomic32_cmpxchg_mb aviary_atomic32_cmpxchg_mb
+#define aviary_smp_atomic32_read_bset_relb aviary_atomic32_read_bset_relb
+#define aviary_smp_atomic32_read_bor_nob aviary_atomic32_read_bor_nob
+#define aviary_smp_atomic32_set_relb aviary_atomic32_set_relb
+
+#define aviary_smp_atomic_set_nob aviary_atomic_set_nob
 
 static inline void
 aviary_smp_mtx_lock(aviary_smp_mtx_t *mtx) {

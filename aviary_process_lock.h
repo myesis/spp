@@ -4,7 +4,7 @@
 #include "aviary_smp.h"
 #include "athr_atomics.h"
 
-#ifdef AVIARY_PROCESS_LOCK_DEFINE_MACRO
+//#ifdef AVIARY_PROCESS_LOCK_DEFINE_MACRO
 #define AVIARY_PROC_LOCK_MAX_BIT 3
 
 typedef aviary_aint32_t AviaryProcLocks;
@@ -85,8 +85,11 @@ typedef struct {
 #define AVIARY_PROC_LOCK_FLGS_READ_(L) \
   ((AviaryProcLocks) aviary_smp_atomic32_read_nob(&(L)->flags))
 
-#endif
+//#endif
 
+
+
+#endif
 
 /*
  * Helper function for aviary_smp_proc_lock__ and aviary_smp_proc_trylock__.
@@ -187,10 +190,13 @@ aviary_smp_proc_unlock__(Process *p,
         if (want_lflgs & locks) {
             /* Locks with waiters remain. */
             /* aviary_proc_unlock_failed() returns with pix_lck unlocked. */
+            assert(0);
+#if 0
             aviary_proc_unlock_failed(p, pix_lck, want_lflgs & locks);
+#endif
         }
         else {
-#if !AVIARY_PROC_LOCK_ATOMIC_IMPL
+#if 0
             aviary_pix_unlock(pix_lck);
 #endif
         }
@@ -211,6 +217,5 @@ aviary_smp_proc_unlock(Process *p, AviaryProcLocks locks)
 {
     aviary_smp_proc_unlock__(p, NULL, locks);
 }
-#endif
 
 #endif
